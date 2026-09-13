@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>이미지 일괄 리사이저</title>
+<meta name="description" content="아이폰 사진을 선택한 순서대로 일괄 리사이징 & 포맷 변환">
+<meta name="theme-color" content="#111827">
+
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="리사이저">
+
+<style>
+  * { box-sizing: border-box; }
+  html, body { overscroll-behavior-y: none; }
+  body {
+    margin: 0;
+    background: #f9fafb;
+    color: #111827;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  main {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 32px 16px 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  h1 { font-size: 20px; font-weight: 700; margin: 0; }
+  .subtitle { margin: 4px 0 0; font-size: 14px; color: #6b7280; }
+
+  #photoInput { display: none; }
+  .pick-label {
+    display: flex;
+    width: 100%;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed #d1d5db;
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+  }
+  .pick-label:active { background: #f3f4f6; }
+
+  .thumb-title { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: #374151; }
+  .thumb-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .thumb-item {
+    position: relative;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #f3f4f6;
+  }
+  .thumb-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb-index {
+    position: absolute; top: 4px; left: 4px;
+    background: rgba(0,0,0,.6); color: #fff;
+    font-size: 10px; font-weight: 600;
+    padding: 1px 6px; border-radius: 4px;
+  }
+  .thumb-remove {
+    position: absolute; top: 4px; right: 4px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: rgba(0,0,0,.6); color: #fff; border: 0;
+    font-size: 12px; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .clear-all {
+    margin-top: 8px;
+    background: none; border: 0; padding: 0;
+    font-size: 12px; font-weight: 500; color: #9ca3af;
+    text-decoration: underline; cursor: pointer;
+  }
+  .clear-all:disabled { opacity: .5; }
+
+  .settings-card {
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .field-label { margin: 0 0 8px; font-size: 14px; font-weight: 500; color: #374151; }
+  .size-row { display: flex; align-items: center; gap: 12px; }
+  .size-field { flex: 1; }
+  .size-field span { display: block; margin-bottom: 4px; font-size: 12px; color: #6b7280; }
+  .size-field input {
+    width: 100%; box-sizing: border-box;
+    border: 1px solid #d1d5db; border-radius: 8px;
+    padding: 12px; font-size: 16px;
+  }
+  .size-field input:disabled { background: #f3f4f6; }
+  .size-x { margin-top: 16px; color: #9ca3af; }
+
+  .btn-grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .btn-grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .choice-btn {
+    border-radius: 8px; border: 1px solid #d1d5db; background: #fff; color: #374151;
+    padding: 12px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .choice-btn.active { border-color: #111827; background: #111827; color: #fff; }
+  .choice-btn:disabled { opacity: .5; }
+
+  .quality-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .quality-head span:first-child { font-size: 14px; font-weight: 500; color: #374151; }
+  .quality-head span:last-child { font-size: 14px; color: #6b7280; }
+  input[type="range"] { width: 100%; }
+  input[type="range"]:disabled { opacity: .5; }
+
+  .process-btn {
+    width: 100%; border: 0; border-radius: 12px;
+    background: #111827; color: #fff;
+    padding: 16px; font-size: 16px; font-weight: 700; cursor: pointer;
+  }
+  .process-btn:disabled { opacity: .4; }
+
+  .save-btn {
+    width: 100%; border-radius: 12px; border: 2px solid #111827;
+    background: #fff; color: #111827;
+    padding: 16px; font-size: 16px; font-weight: 700; cursor: pointer;
+  }
+
+  .status { text-align: center; font-size: 14px; color: #4b5563; }
+
+  section[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>이미지 일괄 리사이저</h1>
+    <p class="subtitle">사진 보관함이나 파일에서 여러 장을 선택하면, 고른 순서 그대로 리사이징 &amp; 포맷 변환합니다.</p>
+  </header>
+
+  <section>
+    <input id="photoInput" type="file" accept="image/*" multiple>
+    <label for="photoInput" class="pick-label">+ 사진 선택 (사진 보관함 / 파일)</label>
+  </section>
+
+  <section id="selectedSection" hidden>
+    <p class="thumb-title" id="selectedTitle"></p>
+    <div id="selectedGrid" class="thumb-grid"></div>
+    <button type="button" id="clearAllBtn" class="clear-all">전체 지우기</button>
+  </section>
+
+  <section class="settings-card">
+    <div>
+      <p class="field-label">크기 (픽셀) — 가로 또는 세로 중 하나만 입력하면 비율을 유지한 채 리사이징합니다</p>
+      <div class="size-row">
+        <label class="size-field">
+          <span>가로</span>
+          <input id="widthInput" type="text" inputmode="numeric" placeholder="예: 1000" value="1000">
+        </label>
+        <span class="size-x">×</span>
+        <label class="size-field">
+          <span>세로</span>
+          <input id="heightInput" type="text" inputmode="numeric" placeholder="예: 1000">
+        </label>
+      </div>
+    </div>
+
+    <div>
+      <p class="field-label">출력 포맷</p>
+      <div class="btn-grid3" id="formatButtons">
+        <button type="button" class="choice-btn active" data-format="jpeg">JPG</button>
+        <button type="button" class="choice-btn" data-format="webp">WEBP</button>
+        <button type="button" class="choice-btn" data-format="png">PNG</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="quality-head">
+        <span id="qualityLabel">이미지 품질</span>
+        <span id="qualityValue">80%</span>
+      </div>
+      <input id="qualityRange" type="range" min="1" max="100" value="80">
+    </div>
+
+    <div>
+      <p class="field-label">사진을 가져온 곳 (저장될 위치와 동일하게 지정됩니다)</p>
+      <div class="btn-grid2" id="saveTargetButtons">
+        <button type="button" class="choice-btn active" data-target="photos">📷 사진 보관함</button>
+        <button type="button" class="choice-btn" data-target="files">📁 파일</button>
+      </div>
+    </div>
+  </section>
+
+  <button type="button" id="processBtn" class="process-btn" disabled>변환 시작 (0장)</button>
+
+  <section id="resultsSection" hidden>
+    <p class="thumb-title" id="resultsTitle"></p>
+    <div id="resultsGrid" class="thumb-grid"></div>
+    <button type="button" id="saveBtn" class="save-btn">📷 사진 보관함에 저장</button>
+  </section>
+
+  <p id="statusMessage" class="status"></p>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+(function () {
+  const MIME_TYPES = { jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+  let uid = 0;
+  const nextId = () => `${Date.now()}-${uid++}`;
+
+  // ---- state ----
+  let photos = [];   // {id, file, previewUrl}
+  let results = [];  // {id, name, blob, mimeType, previewUrl}
+  let format = 'jpeg';
+  let quality = 80;
+  let saveTarget = 'photos';
+  let isProcessing = false;
+
+  // ---- dom refs ----
+  const photoInput = document.getElementById('photoInput');
+  const selectedSection = document.getElementById('selectedSection');
+  const selectedTitle = document.getElementById('selectedTitle');
+  const selectedGrid = document.getElementById('selectedGrid');
+  const clearAllBtn = document.getElementById('clearAllBtn');
+  const widthInput = document.getElementById('widthInput');
+  const heightInput = document.getElementById('heightInput');
+  const formatButtons = document.getElementById('formatButtons');
+  const qualityLabel = document.getElementById('qualityLabel');
+  const qualityValue = document.getElementById('qualityValue');
+  const qualityRange = document.getElementById('qualityRange');
+  const saveTargetButtons = document.getElementById('saveTargetButtons');
+  const processBtn = document.getElementById('processBtn');
+  const resultsSection = document.getElementById('resultsSection');
+  const resultsTitle = document.getElementById('resultsTitle');
+  const resultsGrid = document.getElementById('resultsGrid');
+  const saveBtn = document.getElementById('saveBtn');
+  const statusMessage = document.getElementById('statusMessage');
+
+  // ---- image processing ----
+  async function resizeImage(file, opts) {
+    // imageOrientation: 'from-image' applies the photo's EXIF rotation so
+    // iPhone portrait shots don't come out sideways after resizing.
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const srcWidth = bitmap.width;
+    const srcHeight = bitmap.height;
+    let targetWidth = opts.targetWidth;
+    let targetHeight = opts.targetHeight;
+
+    if (targetWidth && !targetHeight) {
+      targetHeight = Math.round((srcHeight / srcWidth) * targetWidth);
+    } else if (targetHeight && !targetWidth) {
+      targetWidth = Math.round((srcWidth / srcHeight) * targetHeight);
+    } else if (!targetWidth && !targetHeight) {
+      targetWidth = srcWidth;
+      targetHeight = srcHeight;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { bitmap.close(); throw new Error('Canvas context를 생성할 수 없습니다.'); }
+    ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+    bitmap.close();
+
+    const mimeType = MIME_TYPES[opts.format];
+    const q = opts.format === 'png' ? undefined : Math.min(Math.max(opts.quality, 1), 100) / 100;
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, mimeType, q));
+    if (!blob) throw new Error('이미지 변환에 실패했습니다.');
+    return blob;
+  }
+
+  function buildOutputFileName(originalName, index, fmt) {
+    const base = originalName.replace(/\.[^/.]+$/, '');
+    // Zero-padded prefix keeps zip/share order identical to the order the
+    // user picked the photos in, since neither destination sorts by itself.
+    const order = String(index + 1).padStart(3, '0');
+    return `${order}_${base}.${fmt}`;
+  }
+
+  // ---- save / share ----
+  async function shareToPhotos(images) {
+    const filesForShare = images.map((img) => new File([img.blob], img.name, { type: img.mimeType }));
+    if (typeof navigator === 'undefined' || !navigator.canShare || !navigator.canShare({ files: filesForShare })) {
+      return 'unsupported';
+    }
+    try {
+      await navigator.share({ files: filesForShare });
+      return 'shared';
+    } catch (err) {
+      if (err && err.name === 'AbortError') return 'cancelled';
+      throw err;
+    }
+  }
+
+  async function downloadAsZip(images, zipName = 'resized-images.zip') {
+    const zip = new JSZip();
+    images.forEach((img) => zip.file(img.name, img.blob));
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(zipBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = zipName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
+  // ---- rendering ----
+  function renderThumbGrid(gridEl, items, onRemove) {
+    gridEl.innerHTML = '';
+    items.forEach((item, index) => {
+      const cell = document.createElement('div');
+      cell.className = 'thumb-item';
+      const img = document.createElement('img');
+      img.src = item.url;
+      img.alt = item.label;
+      cell.appendChild(img);
+      const badge = document.createElement('span');
+      badge.className = 'thumb-index';
+      badge.textContent = String(index + 1);
+      cell.appendChild(badge);
+      if (onRemove) {
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'thumb-remove';
+        removeBtn.setAttribute('aria-label', '제거');
+        removeBtn.textContent = '×';
+        removeBtn.addEventListener('click', () => onRemove(item.id));
+        cell.appendChild(removeBtn);
+      }
+      gridEl.appendChild(cell);
+    });
+  }
+
+  function renderSelected() {
+    if (photos.length === 0) {
+      selectedSection.hidden = true;
+      return;
+    }
+    selectedSection.hidden = false;
+    selectedTitle.textContent = `선택된 사진 (${photos.length}장 · 선택한 순서대로 표시됩니다)`;
+    const items = photos.map((p) => ({ id: p.id, url: p.previewUrl, label: p.file.name }));
+    renderThumbGrid(selectedGrid, items, isProcessing ? null : removePhoto);
+    clearAllBtn.disabled = isProcessing;
+  }
+
+  function renderResults() {
+    if (results.length === 0) {
+      resultsSection.hidden = true;
+      return;
+    }
+    resultsSection.hidden = false;
+    resultsTitle.textContent = `변환 결과 (${results.length}장 · 선택한 순서대로 표시됩니다)`;
+    const items = results.map((r) => ({ id: r.id, url: r.previewUrl, label: r.name }));
+    renderThumbGrid(resultsGrid, items, null);
+    saveBtn.textContent = saveTarget === 'photos' ? '📷 사진 보관함에 저장' : '📁 파일에 저장';
+  }
+
+  function updateProcessButton() {
+    const canProcess = photos.length > 0 && (widthInput.value !== '' || heightInput.value !== '') && !isProcessing;
+    processBtn.disabled = !canProcess;
+    if (!isProcessing) processBtn.textContent = `변환 시작 (${photos.length}장)`;
+  }
+
+  // ---- event handlers ----
+  function removePhoto(id) {
+    photos = photos.filter((p) => p.id !== id);
+    renderSelected();
+    updateProcessButton();
+  }
+
+  photoInput.addEventListener('change', (e) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    const newPhotos = Array.from(fileList).map((file) => ({
+      id: nextId(),
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
+    photos = photos.concat(newPhotos);
+    results = [];
+    statusMessage.textContent = '';
+    renderSelected();
+    renderResults();
+    updateProcessButton();
+    photoInput.value = '';
+  });
+
+  clearAllBtn.addEventListener('click', () => {
+    photos = [];
+    results = [];
+    statusMessage.textContent = '';
+    renderSelected();
+    renderResults();
+    updateProcessButton();
+  });
+
+  function onlyDigits(value) { return value.replace(/[^0-9]/g, ''); }
+
+  widthInput.addEventListener('input', () => {
+    widthInput.value = onlyDigits(widthInput.value);
+    if (widthInput.value) heightInput.value = '';
+    updateProcessButton();
+  });
+  heightInput.addEventListener('input', () => {
+    heightInput.value = onlyDigits(heightInput.value);
+    if (heightInput.value) widthInput.value = '';
+    updateProcessButton();
+  });
+
+  formatButtons.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-format]');
+    if (!btn || isProcessing) return;
+    format = btn.dataset.format;
+    [...formatButtons.children].forEach((b) => b.classList.toggle('active', b === btn));
+    const isPng = format === 'png';
+    qualityRange.disabled = isPng;
+    qualityLabel.textContent = '이미지 품질' + (isPng ? ' (PNG는 무손실이라 적용되지 않음)' : '');
+  });
+
+  qualityRange.addEventListener('input', () => {
+    quality = Number(qualityRange.value);
+    qualityValue.textContent = `${quality}%`;
+  });
+
+  saveTargetButtons.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-target]');
+    if (!btn || isProcessing) return;
+    saveTarget = btn.dataset.target;
+    [...saveTargetButtons.children].forEach((b) => b.classList.toggle('active', b === btn));
+    renderResults();
+  });
+
+  processBtn.addEventListener('click', async () => {
+    if (photos.length === 0) return;
+    isProcessing = true;
+    statusMessage.textContent = '';
+    results = [];
+    renderResults();
+    processBtn.disabled = true;
+
+    const targetWidth = widthInput.value ? Number(widthInput.value) : undefined;
+    const targetHeight = heightInput.value ? Number(heightInput.value) : undefined;
+    const mimeType = MIME_TYPES[format];
+
+    const processed = [];
+    for (let i = 0; i < photos.length; i++) {
+      const photo = photos[i];
+      processBtn.textContent = `변환 중... (${i}/${photos.length})`;
+      try {
+        const blob = await resizeImage(photo.file, { targetWidth, targetHeight, format, quality });
+        const name = buildOutputFileName(photo.file.name, i, format);
+        processed.push({
+          id: photo.id,
+          name,
+          blob,
+          mimeType,
+          previewUrl: URL.createObjectURL(blob),
+        });
+      } catch (err) {
+        console.error('resize failed', photo.file.name, err);
+      }
+    }
+
+    results = processed;
+    isProcessing = false;
+    renderSelected();
+    renderResults();
+    updateProcessButton();
+    statusMessage.textContent = `${processed.length}장 변환 완료. 저장할 위치를 눌러주세요.`;
+  });
+
+  saveBtn.addEventListener('click', async () => {
+    if (results.length === 0) return;
+    const plain = results.map(({ name, blob, mimeType }) => ({ name, blob, mimeType }));
+
+    if (saveTarget === 'photos') {
+      const result = await shareToPhotos(plain);
+      if (result === 'shared') {
+        statusMessage.textContent = '공유 시트에서 "이미지 저장"을 선택하면 사진 보관함에 저장됩니다.';
+      } else if (result === 'cancelled') {
+        statusMessage.textContent = '저장이 취소되었습니다.';
+      } else {
+        statusMessage.textContent = '이 브라우저는 공유 저장을 지원하지 않아 zip 파일로 대신 다운로드합니다.';
+        await downloadAsZip(plain);
+      }
+    } else {
+      await downloadAsZip(plain);
+      statusMessage.textContent = 'zip 파일이 다운로드되었습니다. "파일" 앱 > 다운로드 폴더에서 압축을 풀어 확인하세요.';
+    }
+  });
+
+  updateProcessButton();
+})();
+</script>
+</body>
+</html>
