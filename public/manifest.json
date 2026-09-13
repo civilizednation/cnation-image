@@ -1,0 +1,25 @@
+{
+  "name": "이미지 일괄 리사이저",
+  "short_name": "리사이저",
+  "description": "사진 보관함/파일에서 고른 순서대로 이미지를 일괄 리사이징 & 포맷 변환합니다",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f9fafb",
+  "theme_color": "#111827",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
