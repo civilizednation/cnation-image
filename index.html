@@ -213,6 +213,7 @@
   </section>
 
   <p id="statusMessage" class="status"></p>
+  <p id="debugMessage" class="status" style="font-size:11px;color:#9ca3af;word-break:break-all;"></p>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -235,6 +236,7 @@
     });
   }
   let webpSupported = true;
+  let lastWasmError = '';
 
   // Safari lacks native WEBP *encoding*, so when that happens we re-encode
   // via a WASM build of libwebp (loaded lazily, only the first time it's
@@ -284,6 +286,7 @@
   const resultsGrid = document.getElementById('resultsGrid');
   const saveBtn = document.getElementById('saveBtn');
   const statusMessage = document.getElementById('statusMessage');
+  const debugMessage = document.getElementById('debugMessage');
 
   // ---- image processing ----
   async function resizeImage(file, opts) {
@@ -326,6 +329,7 @@
         const wasmBlob = await encodeWebpViaWasm(canvas, opts.quality);
         if (wasmBlob) blob = wasmBlob;
       } catch (err) {
+        lastWasmError = (err && (err.message || String(err))) || '알 수 없는 오류';
         console.warn('WASM WEBP 인코딩 실패, PNG로 대체합니다:', err);
       }
     }
@@ -505,6 +509,8 @@
     if (photos.length === 0) return;
     isProcessing = true;
     statusMessage.textContent = '';
+    debugMessage.textContent = '';
+    lastWasmError = '';
     results = [];
     renderResults();
     processBtn.disabled = true;
@@ -546,6 +552,7 @@
     statusMessage.textContent = fallbackCount > 0
       ? `${processed.length}장 변환 완료 (이 중 ${fallbackCount}장은 브라우저 제약으로 PNG로 저장됨). 저장할 위치를 눌러주세요.`
       : `${processed.length}장 변환 완료. 저장할 위치를 눌러주세요.`;
+    debugMessage.textContent = fallbackCount > 0 && lastWasmError ? `(디버그) WEBP 변환기 오류: ${lastWasmError}` : '';
   });
 
   saveBtn.addEventListener('click', async () => {
