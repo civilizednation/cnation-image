@@ -98,6 +98,7 @@
     gap: 20px;
   }
   .field-label { margin: 0 0 8px; font-size: 14px; font-weight: 500; color: #374151; }
+  .field-note { margin: 8px 0 0; font-size: 12px; color: #b45309; }
   .size-row { display: flex; align-items: center; gap: 12px; }
   .size-field { flex: 1; }
   .size-field span { display: block; margin-bottom: 4px; font-size: 12px; color: #6b7280; }
@@ -183,6 +184,7 @@
         <button type="button" class="choice-btn" data-format="webp">WEBP</button>
         <button type="button" class="choice-btn" data-format="png">PNG</button>
       </div>
+      <p id="webpWarning" class="field-note" hidden>⚠️ 이 브라우저(Safari)는 WEBP 인코딩을 지원하지 않아, 실제로는 PNG로 저장됩니다.</p>
     </div>
 
     <div>
@@ -217,8 +219,22 @@
 <script>
 (function () {
   const MIME_TYPES = { jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+  const EXT_FROM_MIME = { 'image/jpeg': 'jpeg', 'image/png': 'png', 'image/webp': 'webp' };
   let uid = 0;
   const nextId = () => `${Date.now()}-${uid++}`;
+
+  // Safari can display WEBP but its <canvas> cannot encode to WEBP — it
+  // silently falls back to PNG. Detect that up front so we can warn before
+  // the user picks WEBP expecting WEBP-sized output.
+  function detectWebpEncodingSupport() {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      canvas.toBlob((blob) => resolve(!!blob && blob.type === 'image/webp'), 'image/webp');
+    });
+  }
+  let webpSupported = true;
 
   // ---- state ----
   let photos = [];   // {id, file, previewUrl}
@@ -237,6 +253,7 @@
   const widthInput = document.getElementById('widthInput');
   const heightInput = document.getElementById('heightInput');
   const formatButtons = document.getElementById('formatButtons');
+  const webpWarning = document.getElementById('webpWarning');
   const qualityLabel = document.getElementById('qualityLabel');
   const qualityValue = document.getElementById('qualityValue');
   const qualityRange = document.getElementById('qualityRange');
@@ -423,6 +440,10 @@
     updateProcessButton();
   });
 
+  function updateWebpWarning() {
+    webpWarning.hidden = !(format === 'webp' && !webpSupported);
+  }
+
   formatButtons.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-format]');
     if (!btn || isProcessing) return;
@@ -431,6 +452,7 @@
     const isPng = format === 'png';
     qualityRange.disabled = isPng;
     qualityLabel.textContent = '이미지 품질' + (isPng ? ' (PNG는 무손실이라 적용되지 않음)' : '');
+    updateWebpWarning();
   });
 
   qualityRange.addEventListener('input', () => {
@@ -456,20 +478,26 @@
 
     const targetWidth = widthInput.value ? Number(widthInput.value) : undefined;
     const targetHeight = heightInput.value ? Number(heightInput.value) : undefined;
-    const mimeType = MIME_TYPES[format];
 
     const processed = [];
+    let fallbackCount = 0;
     for (let i = 0; i < photos.length; i++) {
       const photo = photos[i];
       processBtn.textContent = `변환 중... (${i}/${photos.length})`;
       try {
         const blob = await resizeImage(photo.file, { targetWidth, targetHeight, format, quality });
-        const name = buildOutputFileName(photo.file.name, i, format);
+        // Some browsers (Safari) silently ignore the requested format and
+        // hand back a different one (webp -> png). Trust blob.type, the
+        // format actually encoded, rather than what we asked for — otherwise
+        // the file gets a .webp name with PNG bytes inside.
+        const actualFormat = EXT_FROM_MIME[blob.type] || format;
+        if (actualFormat !== format) fallbackCount++;
+        const name = buildOutputFileName(photo.file.name, i, actualFormat);
         processed.push({
           id: photo.id,
           name,
           blob,
-          mimeType,
+          mimeType: blob.type || MIME_TYPES[actualFormat],
           previewUrl: URL.createObjectURL(blob),
         });
       } catch (err) {
@@ -482,7 +510,9 @@
     renderSelected();
     renderResults();
     updateProcessButton();
-    statusMessage.textContent = `${processed.length}장 변환 완료. 저장할 위치를 눌러주세요.`;
+    statusMessage.textContent = fallbackCount > 0
+      ? `${processed.length}장 변환 완료 (이 중 ${fallbackCount}장은 브라우저 제약으로 PNG로 저장됨). 저장할 위치를 눌러주세요.`
+      : `${processed.length}장 변환 완료. 저장할 위치를 눌러주세요.`;
   });
 
   saveBtn.addEventListener('click', async () => {
@@ -506,6 +536,10 @@
   });
 
   updateProcessButton();
+  detectWebpEncodingSupport().then((supported) => {
+    webpSupported = supported;
+    updateWebpWarning();
+  });
 })();
 </script>
 </body>
