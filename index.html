@@ -184,7 +184,7 @@
         <button type="button" class="choice-btn" data-format="webp">WEBP</button>
         <button type="button" class="choice-btn" data-format="png">PNG</button>
       </div>
-      <p id="webpWarning" class="field-note" hidden>⚠️ 이 브라우저(Safari)는 WEBP 인코딩을 지원하지 않아, 실제로는 PNG로 저장됩니다.</p>
+      <p id="webpWarning" class="field-note" hidden>ℹ️ 이 브라우저는 WEBP를 자체 지원하지 않아 변환기를 추가로 불러옵니다. 처음 변환 시 몇 초 더 걸릴 수 있습니다.</p>
     </div>
 
     <div>
@@ -235,6 +235,26 @@
     });
   }
   let webpSupported = true;
+
+  // Safari lacks native WEBP *encoding*, so when that happens we re-encode
+  // via a WASM build of libwebp (loaded lazily, only the first time it's
+  // actually needed) instead of silently handing back a PNG.
+  let webpWasmEncodePromise = null;
+  function loadWebpWasmEncoder() {
+    if (!webpWasmEncodePromise) {
+      webpWasmEncodePromise = import('https://cdn.jsdelivr.net/npm/@jsquash/webp@1.4.0/encode.js')
+        .then((mod) => mod.default);
+    }
+    return webpWasmEncodePromise;
+  }
+
+  async function encodeWebpViaWasm(canvas, quality) {
+    const encode = await loadWebpWasmEncoder();
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const buffer = await encode(imageData, { quality: Math.min(Math.max(quality, 1), 100) });
+    return new Blob([buffer], { type: 'image/webp' });
+  }
 
   // ---- state ----
   let photos = [];   // {id, file, previewUrl}
@@ -295,8 +315,21 @@
     const mimeType = MIME_TYPES[opts.format];
     const q = opts.format === 'png' ? undefined : Math.min(Math.max(opts.quality, 1), 100) / 100;
 
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, mimeType, q));
+    let blob = await new Promise((resolve) => canvas.toBlob(resolve, mimeType, q));
     if (!blob) throw new Error('이미지 변환에 실패했습니다.');
+
+    // Safari ignores the 'image/webp' request and silently returns PNG.
+    // Catch that by checking what we actually got back, then re-encode
+    // through the WASM encoder so WEBP output is real WEBP there too.
+    if (opts.format === 'webp' && blob.type !== 'image/webp') {
+      try {
+        const wasmBlob = await encodeWebpViaWasm(canvas, opts.quality);
+        if (wasmBlob) blob = wasmBlob;
+      } catch (err) {
+        console.warn('WASM WEBP 인코딩 실패, PNG로 대체합니다:', err);
+      }
+    }
+
     return blob;
   }
 
