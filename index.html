@@ -138,6 +138,12 @@
     padding: 16px; font-size: 16px; font-weight: 700; cursor: pointer;
   }
 
+  .reset-btn {
+    width: 100%; margin-top: 8px; border-radius: 12px; border: 1px solid #d1d5db;
+    background: #fff; color: #6b7280;
+    padding: 12px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+
   .status { text-align: center; font-size: 14px; color: #4b5563; }
 
   section[hidden] { display: none !important; }
@@ -210,6 +216,7 @@
     <p class="thumb-title" id="resultsTitle"></p>
     <div id="resultsGrid" class="thumb-grid"></div>
     <button type="button" id="saveBtn" class="save-btn">📷 사진 보관함에 저장</button>
+    <button type="button" id="resetBtn" class="reset-btn">🔄 새로운 이미지 변환</button>
   </section>
 
   <p id="statusMessage" class="status"></p>
@@ -289,6 +296,7 @@
   const resultsTitle = document.getElementById('resultsTitle');
   const resultsGrid = document.getElementById('resultsGrid');
   const saveBtn = document.getElementById('saveBtn');
+  const resetBtn = document.getElementById('resetBtn');
   const statusMessage = document.getElementById('statusMessage');
   const debugMessage = document.getElementById('debugMessage');
 
@@ -459,14 +467,21 @@
     photoInput.value = '';
   });
 
-  clearAllBtn.addEventListener('click', () => {
+  function resetAll() {
+    photos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    results.forEach((r) => URL.revokeObjectURL(r.previewUrl));
     photos = [];
     results = [];
     statusMessage.textContent = '';
+    debugMessage.textContent = '';
+    lastWasmError = '';
     renderSelected();
     renderResults();
     updateProcessButton();
-  });
+  }
+
+  clearAllBtn.addEventListener('click', resetAll);
+  resetBtn.addEventListener('click', resetAll);
 
   function onlyDigits(value) { return value.replace(/[^0-9]/g, ''); }
 
