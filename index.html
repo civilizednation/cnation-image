@@ -303,8 +303,12 @@
   // ---- image processing ----
   async function resizeImage(file, opts) {
     // imageOrientation: 'from-image' applies the photo's EXIF rotation so
-    // iPhone portrait shots don't come out sideways after resizing.
-    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    // iPhone portrait shots don't come out sideways after resizing. Only
+    // JPEGs carry that EXIF flag in practice — on Safari, requesting it for
+    // a transparent PNG silently flattens the alpha channel to white, so we
+    // only ask for it on JPEG input.
+    const isJpeg = file.type === 'image/jpeg' || file.type === 'image/jpg';
+    const bitmap = await createImageBitmap(file, { imageOrientation: isJpeg ? 'from-image' : 'none' });
     const srcWidth = bitmap.width;
     const srcHeight = bitmap.height;
     let targetWidth = opts.targetWidth;
